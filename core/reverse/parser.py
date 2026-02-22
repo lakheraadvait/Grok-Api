@@ -74,37 +74,55 @@ class Parser:
         return verification_token, anim
     
     @staticmethod
-    def parse_grok(scripts: list) -> tuple[list, str]:
-        
-        Parser._load_grok_mapping()
-        
-        for index in Parser.grok_mapping:
-            if index.get("action_script") in scripts:
-                return index["actions"], index["xsid_script"]
-            
-        for script in scripts:
-            content: str = requests.get(f'https://grok.com{script}', impersonate="chrome136").text
-            if "anonPrivateKey" in content:
-                script_content1: str = content
-                action_script: str = script
-            elif "880932)" in content:
-                script_content2: str = content
+def parse_grok(scripts: list) -> tuple[list, str]:
 
-        actions: list = findall(r'createServerReference\)\("([a-f0-9]+)"', script_content1)
-        xsid_script: str = search(r'"(static/chunks/[^"]+\.js)"[^}]*?\(880932\)', script_content2).group(1)
-        
-        if actions and xsid_script:
-            Parser.grok_mapping.append({
-                "xsid_script": xsid_script,
-                "action_script": action_script,
-                "actions": actions
-            })
-            
-            with open('core/mappings/grok.json', 'w') as f:
-                dump(Parser.grok_mapping, f, indent=2)
-                
-            return actions, xsid_script
-        else:
-            print("Something went wrong while parsing script and actions")
+    Parser._load_grok_mapping()
+
+    for index in Parser.grok_mapping:
+        if index.get("action_script") in scripts:
+            return index["actions"], index["xsid_script"]
+
+    script_content1 = ""
+    script_content2 = ""
+    action_script = ""
+
+    for script in scripts:
+        content = requests.get(
+            f'https://grok.com{script}',
+            impersonate="chrome136"
+        ).text
+
+        if "anonPrivateKey" in content:
+            script_content1 = content
+            action_script = script
+
+        elif "880932)" in content:
+            script_content2 = content
+
+    actions = findall(
+        r'createServerReference\)\("([a-f0-9]+)"',
+        script_content1
+    ) if script_content1 else []
+
+    xsid_match = search(
+        r'"(static/chunks/[^"]+\.js)"[^}]*?\(880932\)',
+        script_content2
+    ) if script_content2 else None
+
+    xsid_script = xsid_match.group(1) if xsid_match else ""
+
+    if actions and xsid_script:
+        Parser.grok_mapping.append({
+            "xsid_script": xsid_script,
+            "action_script": action_script,
+            "actions": actions
+        })
+
+        with open('core/mappings/grok.json', 'w') as f:
+            dump(Parser.grok_mapping, f, indent=2)
+
+        return actions, xsid_script
+
+    raise Exception("Failed to parse Grok scripts")
         
         
